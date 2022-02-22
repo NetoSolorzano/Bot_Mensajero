@@ -38,6 +38,7 @@ namespace Bot_Mensajero
         string asunto = "";     // asunto con nombre y hora
         //string DB_CONN_STR = "server=" + serv + ";uid=" + usua + ";pwd=" + cont + ";database=" + data + ";";  // PARA MYSQL debian/ubuntu
         string DB_CONN_STR = "Server=" + serv + ";Database=" + data + ";Uid=" + usua + ";Pwd=" + cont + ";";    // PARA MySQL CentOs
+
         public Bot_Mensajero()
         {
             InitializeComponent();
@@ -55,9 +56,6 @@ namespace Bot_Mensajero
             // escribe en el log de eventos del sistema - inicio del mensajero
             eventoSistema.WriteEntry("Inicio del Bot_Mensajero");
 
-            //mensajeLog = "Estoy en el onStart";
-            //escribirLineaFichero();
-
             Timer timer1 = new Timer();
             timer1.Interval = int.Parse(lapso) * 1000;          // en xml es segundos, en c# es milisegundos, por eso multiplicamos por 1000
             timer1.Enabled = true;
@@ -73,40 +71,95 @@ namespace Bot_Mensajero
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            //mensajeLog = "Estoy en el timer Tick";
-            //escribirLineaFichero();
             using (MySqlConnection conn = new MySqlConnection(DB_CONN_STR))
             {
                 try
                 {
                     conn.Open();
-                    //mensajeLog = "Estoy antes de abrir la conexion";
-                    //escribirLineaFichero();
                     if (conn.State == System.Data.ConnectionState.Open)
                     {
-                        //mensajeLog = "Estoy dentro de la conexion ABIERTA";
-                        //escribirLineaFichero();
-
                         DataTable dt = new DataTable();
                         // lee registros nuevos
-                        if (plan_lector(conn, dt) == true)
+                        //if (plan_lector(conn, dt) == true)
                         {
-                            //mensajeLog = "Plan lector si obtuvo datos";
-                            //escribirLineaFichero();
+                            string jala = "SELECT a.emp_code,a.punch_time,a.area_alias,b.first_name,ifnull(b.last_name,'') AS last_name,a.id " +
+                                "FROM iclock_transaction a LEFT JOIN personnel_employee b ON a.emp_code = b.emp_code " +
+                                "WHERE date(a.punch_time)>@feini AND a.marca = 0";
+                            using (MySqlCommand micon = new MySqlCommand(jala, conn))
+                            {
+                                micon.Parameters.AddWithValue("@feini", feini);
+                                using (MySqlDataAdapter da = new MySqlDataAdapter(micon))
+                                {
+                                    dt.Rows.Clear();
+                                    da.Fill(dt);
+                                    if (dt.Rows.Count > 0) //retorna = true;
+                                    {
+                                        foreach (DataRow row in dt.Rows)
+                                        {
+                                            asunto = "";
+                                            string cuerpo = getHtml(row.ItemArray[3].ToString() + " " +
+                                                row.ItemArray[4].ToString(),        // nombre del fulano
+                                                row.ItemArray[1].ToString(),        // fecha/hora
+                                                row.ItemArray[0].ToString(),        // codigo empleado
+                                                row.ItemArray[2].ToString());       // area o tienda
+                                            asunto = asuco + row.ItemArray[3].ToString() + " " + row.ItemArray[4].ToString() + " - " + row.ItemArray[1].ToString();
+                                            //if (Email(cuerpo) == true)              // ACA SE ENVIA EL CORREO
+                                            {
+                                                MailMessage message = new MailMessage();
+                                                SmtpClient smtp = new SmtpClient();
+                                                message.From = new MailAddress(coror);      // correo quien envía
+                                                message.To.Add(new MailAddress(corde));     // correo destinatario
+                                                message.Subject = asunto;                   // texto general + nombre y fecha/hora
+                                                message.IsBodyHtml = true;                  // correo en html?
+                                                message.Body = cuerpo;   // htmlString;                  // cuerpo del correo
+                                                smtp.Port = int.Parse(nupto);               // 26;  // 465;    // 587;
+                                                smtp.Host = smtpn;                          // "smtp.gmail.com";
+                                                smtp.EnableSsl = false;                     // correo con certificado de seguridad?
+                                                smtp.UseDefaultCredentials = false;
+                                                smtp.Credentials = new NetworkCredential(coror, pasco);     // correoElectronico, contraseña
+                                                smtp.DeliveryMethod = SmtpDeliveryMethod.Network;
+                                                smtp.Send(message);
+                                                //
+                                                mensajeLog = "Enviado correo del registro " + row.ItemArray[5].ToString() + " - " + row.ItemArray[3].ToString() + " " +
+                                                    row.ItemArray[4].ToString() + " - " + row.ItemArray[1].ToString();
+                                                escribirLineaFichero();
 
-                            // envía correos
+                                                // marca registro como "correo enviado"
+                                                //if (envia_correo(conn, int.Parse(row.ItemArray[5].ToString())) == false)    // campo id del registro
+                                                {
+                                                    string actua = "UPDATE iclock_transaction SET marca=1 WHERE id=@nreg";
+                                                    using (MySqlCommand miupd = new MySqlCommand(actua, conn))
+                                                    {
+                                                        miupd.Parameters.AddWithValue("@nreg", row.ItemArray[5].ToString());
+                                                        miupd.ExecuteNonQuery();
+                                                    }
+                                                    //mensajeLog = "No se puede actualizar el campo de marca de envío";
+                                                    //escribirLineaFichero();
+                                                }
+                                            }/*
+                                            else
+                                            {
+                                                mensajeLog = "Error al momento o despues de enviar el correo";
+                                                escribirLineaFichero();
+
+                                            }*/
+                                        }
+                                    }
+                                }
+                            }
+                            /* envía correos
                             if (mensajero(conn, dt) == false)
                             {
                                 mensajeLog = "No se puede enviar los correos, error en la lectura de datos o en el envío";
                                 escribirLineaFichero();
-                            }
-                        }
+                            } */
+                        }/*
                         else
                         {
                             // mensaje de error con la lectura de la tabla
-                            //mensajeLog = "No se puede leer los datos de la tabla o no existen datos";
-                            //escribirLineaFichero();
-                        }
+                            mensajeLog = "No se puede leer los datos de la tabla o no existen datos";
+                            escribirLineaFichero();
+                        }*/
                     }
                     else
                     {
@@ -151,7 +204,7 @@ namespace Bot_Mensajero
                     row.ItemArray[0].ToString(),        // codigo empleado
                     row.ItemArray[2].ToString());       // area o tienda
                 asunto = asuco + row.ItemArray[3].ToString() + " " + row.ItemArray[4].ToString() + " - " + row.ItemArray[1].ToString();
-                if (Email(cuerpo) == true)
+                if (Email(cuerpo) == true)              // ACA SE ENVIA EL CORREO
                 {
                     mensajeLog = "Enviado correo del registro " + row.ItemArray[5].ToString() + " - " + row.ItemArray[3].ToString() + " " + 
                         row.ItemArray[4].ToString() + " - " + row.ItemArray[1].ToString();
@@ -167,6 +220,12 @@ namespace Bot_Mensajero
                         mensajeLog = "No se puede actualizar el campo de marca de envío";
                         escribirLineaFichero();
                     }
+                }
+                else
+                {
+                    mensajeLog = "Error al momento o despues de enviar el correo";
+                    escribirLineaFichero();
+
                 }
             }
             return retorna;
@@ -211,7 +270,7 @@ namespace Bot_Mensajero
             }
         }
         // envío del mensaje
-        private bool Email(string htmlString)
+        private bool Email(string htmlString)               // FUNCION PARA ENVIAR CORREO
         {
             bool retorna = false;
             try
@@ -233,7 +292,10 @@ namespace Bot_Mensajero
                 smtp.Send(message);
                 retorna = true;
             }
-            catch (Exception) { }
+            catch (Exception ex) {
+                mensajeLog = ex.Message;
+                escribirLineaFichero();
+            }
             return retorna;
         }
         // marca el registro indicado como correo enviado
